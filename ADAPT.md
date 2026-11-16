@@ -41,19 +41,6 @@ The numbers 1 and 2 in the new messages are new because the messages are new:
 numbering is per message. The existing messages (`Book`, the three request/response
 pairs) keep exactly their numbers (`verification/sanity_check.py` checks this).
 
-## 2. Regeneration
-
-```powershell
-.\generate.ps1       # re-runs protoc: rewrites catalog.pb.go and catalog_grpc.pb.go
-go build ./...
-```
-
-Both generated files are rewritten completely. The new files contain the two new
-message types, `CheckAvailability` on the client stub (`BookCatalogClient`) and on the
-server interface (`BookCatalogServer`).
-
-Observed: _(fill in)_
-
 ## 3. What changed in the handwritten code
 
 | File | Change |
