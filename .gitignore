@@ -1,0 +1,3 @@
+# The real database is created at runtime; never commit or ship it.
+catalog.db
+*.db-journal

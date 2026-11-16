@@ -1,0 +1,103 @@
+// proto/catalog.proto
+//
+// THE CONTRACT between the client and the server. This is the single source of
+// truth: the Go files in gen/catalogpb/ are GENERATED from it by `protoc`
+// (see generate.ps1) and must never be edited by hand.
+//
+// What belongs here:    message shapes (fields + numbers) and RPC signatures.
+// What does NOT belong: business rules and SQL (they live in cmd/server).
+
+// "proto3" is the current version of the Protocol Buffers language.
+syntax = "proto3";
+
+// The protobuf package name. It becomes part of the RPC's full name on the
+// wire, e.g. "/catalog.BookCatalog/GetBook".
+package catalog;
+
+// Where `protoc-gen-go` puts the generated code: this Go import path (module
+// name "book-catalog-grpc" + folder) and the Go package name "catalogpb".
+option go_package = "book-catalog-grpc/gen/catalogpb";
+
+// ---------------------------------------------------------------------------
+// FIELD NUMBERS
+// Every field has a unique number (= 1, = 2, ...). On the wire protobuf sends
+// the NUMBER, not the field name. So a number must never be reused for a
+// different meaning, and never changed once clients exist: an old client would
+// read the new data as the old field. To extend a message, add a NEW number.
+// ---------------------------------------------------------------------------
+
+// Book is one row of the books table.
+// The server (SQLite) generates `id`. A client must NOT choose it when creating
+// a book, which is why CreateBookRequest below has no id field.
+message Book {
+  int32 id = 1;
+  string title = 2;
+  string author = 3;
+  string isbn = 4;  // Unique per book.
+  double price = 5; // Must be > 0.
+  int32 stock = 6;  // Must be >= 0.
+}
+
+// ----- GetBook ---------------------------------------------------------------
+message GetBookRequest {
+  int32 book_id = 1; // Must be > 0.
+}
+
+message GetBookResponse {
+  Book book = 1;
+}
+
+// ----- ListBooks -------------------------------------------------------------
+message ListBooksRequest {
+  int32 page = 1;      // 1-based page number. Must be > 0.
+  int32 page_size = 2; // Books per page. Must be > 0; the server caps it at 50.
+}
+
+message ListBooksResponse {
+  // `repeated` = a list. In Go it becomes the slice []*Book.
+  repeated Book books = 1;
+  // Total number of books in the whole table (not just on this page).
+  int32 total = 2;
+}
+
+// ----- CreateBook ------------------------------------------------------------
+// There is deliberately no `id` here: the database generates it.
+message CreateBookRequest {
+  string title = 1;
+  string author = 2;
+  string isbn = 3;
+  double price = 4;
+  int32 stock = 5;
+}
+
+message CreateBookResponse {
+  Book book = 1; // The stored book, including its generated id.
+}
+
+// ----- CheckAvailability (ADAPT: added after the three baseline RPCs) --------
+// These are NEW messages, so their numbers start again at 1. No existing
+// message or field number was changed.
+message CheckAvailabilityRequest {
+  int32 book_id = 1;  // Must be > 0.
+  int32 quantity = 2; // Must be > 0.
+}
+
+message CheckAvailabilityResponse {
+  bool available = 1;      // true if current_stock >= quantity.
+  int32 current_stock = 2; // The stock that is stored right now.
+}
+
+// ---------------------------------------------------------------------------
+// The service: a list of RPCs. From this block `protoc-gen-go-grpc` generates
+//   - BookCatalogClient / NewBookCatalogClient       : the client stub
+//   - BookCatalogServer / RegisterBookCatalogServer  : the server interface
+// All RPCs here are "unary": one request in, one response out.
+// ---------------------------------------------------------------------------
+service BookCatalog {
+  rpc GetBook(GetBookRequest) returns (GetBookResponse);
+  rpc ListBooks(ListBooksRequest) returns (ListBooksResponse);
+  rpc CreateBook(CreateBookRequest) returns (CreateBookResponse);
+
+  // ADAPT: added at the end; the three methods above are unchanged.
+  rpc CheckAvailability(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+}
