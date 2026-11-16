@@ -1,67 +1,77 @@
 // proto/catalog.proto
 //
-// THE CONTRACT between the client and the server. This is the single source of
-// truth: the Go files in gen/catalogpb/ are GENERATED from it by `protoc`
-// (see generate.ps1) and must never be edited by hand.
+// This file defines the information exchanged between the Book Catalog client
+// and server. It describes the book information, the requests clients can make,
+// and the responses they receive.
 //
-// What belongs here:    message shapes (fields + numbers) and RPC signatures.
-// What does NOT belong: business rules and SQL (they live in cmd/server).
+// The Go files in gen/catalogpb/ are generated from this file.
+// Whenever this file changes, regenerate those Go files.
+// Never edit the generated files manually.
+//
+// Business rules and database operations are handled separately in cmd/server.
 
-// "proto3" is the current version of the Protocol Buffers language.
 syntax = "proto3";
 
-// The protobuf package name. It becomes part of the RPC's full name on the
-// wire, e.g. "/catalog.BookCatalog/GetBook".
+// Name used to identify this service in the application.
 package catalog;
 
-// Where `protoc-gen-go` puts the generated code: this Go import path (module
-// name "book-catalog-grpc" + folder) and the Go package name "catalogpb".
+// Location where the generated Go files belong.
 option go_package = "book-catalog-grpc/gen/catalogpb";
 
 // ---------------------------------------------------------------------------
 // FIELD NUMBERS
-// Every field has a unique number (= 1, = 2, ...). On the wire protobuf sends
-// the NUMBER, not the field name. So a number must never be reused for a
-// different meaning, and never changed once clients exist: an old client would
-// read the new data as the old field. To extend a message, add a NEW number.
+// Each field has its own number. Protocol Buffers uses these numbers to
+// identify information when the client and server exchange data.
+//
+// Never change or reuse an existing number because older clients could
+// misunderstand the information they receive.
+// When adding new fields, always assign new numbers.
 // ---------------------------------------------------------------------------
 
-// Book is one row of the books table.
-// The server (SQLite) generates `id`. A client must NOT choose it when creating
-// a book, which is why CreateBookRequest below has no id field.
+// Represents a book in the catalog.
+// The database generates the book ID automatically when a new book is created.
+// Each book must have a unique ISBN, a positive price and nonnegative stock.
 message Book {
   int32 id = 1;
   string title = 2;
   string author = 3;
-  string isbn = 4;  // Unique per book.
-  double price = 5; // Must be > 0.
-  int32 stock = 6;  // Must be >= 0.
+  string isbn = 4;
+  double price = 5;
+  int32 stock = 6;
 }
 
 // ----- GetBook ---------------------------------------------------------------
+
+// Information required to find a book.
 message GetBookRequest {
-  int32 book_id = 1; // Must be > 0.
+  int32 book_id = 1; // ID of the book to retrieve.
 }
 
+// Information returned after finding a book.
 message GetBookResponse {
   Book book = 1;
 }
 
 // ----- ListBooks -------------------------------------------------------------
+
+// Information required to retrieve a selected page of books.
+// Page numbering starts at 1. Page size must be positive and cannot exceed 50.
 message ListBooksRequest {
-  int32 page = 1;      // 1-based page number. Must be > 0.
-  int32 page_size = 2; // Books per page. Must be > 0; the server caps it at 50.
+  int32 page = 1;
+  int32 page_size = 2;
 }
 
+// Contains the books returned on the requested page and the total
+// number of books in the entire catalog.
 message ListBooksResponse {
-  // `repeated` = a list. In Go it becomes the slice []*Book.
   repeated Book books = 1;
-  // Total number of books in the whole table (not just on this page).
   int32 total = 2;
 }
 
 // ----- CreateBook ------------------------------------------------------------
-// There is deliberately no `id` here: the database generates it.
+
+// Information required to add a new book.
+// There is no ID field because the database generates it automatically.
 message CreateBookRequest {
   string title = 1;
   string author = 2;
@@ -70,34 +80,44 @@ message CreateBookRequest {
   int32 stock = 5;
 }
 
+// Returns the newly created book, including its generated ID.
 message CreateBookResponse {
-  Book book = 1; // The stored book, including its generated id.
+  Book book = 1;
 }
 
-// ----- CheckAvailability (ADAPT: added after the three baseline RPCs) --------
-// These are NEW messages, so their numbers start again at 1. No existing
-// message or field number was changed.
+// ----- CheckAvailability (ADAPT) ---------------------------------------------
+
+// Information required to check whether a requested quantity of a book
+// is available. Both the book ID and requested quantity must be positive.
 message CheckAvailabilityRequest {
-  int32 book_id = 1;  // Must be > 0.
-  int32 quantity = 2; // Must be > 0.
+  int32 book_id = 1;
+  int32 quantity = 2;
 }
 
+// Returns whether the requested quantity can be supplied and how many
+// copies are currently in stock. Checking availability does not change stock.
 message CheckAvailabilityResponse {
-  bool available = 1;      // true if current_stock >= quantity.
-  int32 current_stock = 2; // The stock that is stored right now.
+  bool available = 1;
+  int32 current_stock = 2;
 }
 
 // ---------------------------------------------------------------------------
-// The service: a list of RPCs. From this block `protoc-gen-go-grpc` generates
-//   - BookCatalogClient / NewBookCatalogClient       : the client stub
-//   - BookCatalogServer / RegisterBookCatalogServer  : the server interface
-// All RPCs here are "unary": one request in, one response out.
+// BOOK CATALOG SERVICE
+//
+// Defines the four operations that clients can request from the server.
+// Each operation receives one request and returns one response.
 // ---------------------------------------------------------------------------
+
 service BookCatalog {
+  // Find and return one book using its ID.
   rpc GetBook(GetBookRequest) returns (GetBookResponse);
+
+  // Retrieve a selected page of books and the total catalog count.
   rpc ListBooks(ListBooksRequest) returns (ListBooksResponse);
+
+  // Add a new book to the catalog and return its saved information.
   rpc CreateBook(CreateBookRequest) returns (CreateBookResponse);
 
-  // ADAPT: added at the end; the three methods above are unchanged.
+  // Check whether enough copies of a book are available without changing stock.
   rpc CheckAvailability(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
 }

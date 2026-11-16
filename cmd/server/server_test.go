@@ -3,14 +3,14 @@
 // Automated tests. Run them from the project root with:  go test ./...
 //
 // How the tests work:
-//   - Every test creates its OWN temporary SQLite file (t.TempDir()), so the
-//     real catalog.db is never touched. Go deletes the temp folder afterwards.
-//   - Every test starts a REAL gRPC server on 127.0.0.1 with a random free port
-//     (port 0 = "pick any free port") and talks to it through the generated
-//     client stub. So each call really goes: stub -> TCP/HTTP2 -> server ->
-//     service method -> Store -> SQLite, and the same way back.
-//   - Many tests also run their own SELECT to check what is really stored in
-//     the database, not only what the response says.
+//   - Most tests use their own temporary SQLite database, so the real
+//     catalog.db is never changed. The temporary files are removed afterwards.
+//   - Most tests start a separate gRPC server and send requests to it,
+//     just like a real client would.
+//   - One test deliberately connects without a running server to check
+//     how the client handles an unavailable server.
+//   - Some tests also check the database directly to make sure the
+//     information was actually saved or left unchanged.
 package main
 
 import (
